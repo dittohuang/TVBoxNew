@@ -1,7 +1,9 @@
 package com.github.tvbox.osc.ui.dlna;
 
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
+import android.net.wifi.WifiManager;
 import android.os.Binder;
 import android.os.IBinder;
 import android.util.Log;
@@ -10,6 +12,7 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
+import java.net.NetworkInterface;
 import java.net.SocketTimeoutException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -26,12 +29,13 @@ public class DLNAService extends Service {
     private final IBinder binder = new DLNABinder();
     private ExecutorService executor = Executors.newSingleThreadExecutor();
     private AtomicBoolean isSearching = new AtomicBoolean(false);
-    private MulticastSocket socket;
+    private volatile MulticastSocket socket;
     private OnDeviceDiscoveryListener discoveryListener;
 
     public interface OnDeviceDiscoveryListener {
         void onDeviceFound(String location, String usn, String friendlyName);
         void onSearchComplete();
+        void onDebugLog(String message);
     }
 
     public class DLNABinder extends Binder {
@@ -50,21 +54,28 @@ public class DLNAService extends Service {
     }
 
     public void searchDevices() {
-        if (isSearching.get()) return;
-        isSearching.set(true);
+        debugLog("触发搜索...");
+        // Close any in-progress socket to abort the current receive loop quickly
+        MulticastSocket s = socket;
+        if (s != null && !s.isClosed()) {
+            s.close();
+        }
+        executor.execute(this::runSearch);
+    }
 
-        executor.execute(() -> {
-            try {
-                performSSDPSearch();
-            } catch (Exception e) {
-                Log.e(TAG, "SSDP search error", e);
-            } finally {
-                isSearching.set(false);
-                if (discoveryListener != null) {
-                    discoveryListener.onSearchComplete();
-                }
+    private void runSearch() {
+        isSearching.set(true);
+        try {
+            performSSDPSearch();
+        } catch (Exception e) {
+            Log.e(TAG, "SSDP search error", e);
+            debugLog("搜索出错: " + e.getMessage());
+        } finally {
+            isSearching.set(false);
+            if (discoveryListener != null) {
+                discoveryListener.onSearchComplete();
             }
-        });
+        }
     }
 
     private void performSSDPSearch() throws IOException {
@@ -77,48 +88,120 @@ public class DLNAService extends Service {
             "\r\n";
 
         InetAddress multicastAddress = InetAddress.getByName(SSDP_ADDRESS);
+        debugLog("目标组播地址: " + SSDP_ADDRESS + ":" + SSDP_PORT);
 
-        if (socket != null && !socket.isClosed()) {
-            socket.close();
+        // Acquire MulticastLock — without this Android's WiFi chip filters out
+        // multicast packets at the hardware level, so no SSDP responses arrive.
+        WifiManager wifiManager = (WifiManager) getApplicationContext()
+                .getSystemService(Context.WIFI_SERVICE);
+        WifiManager.MulticastLock multicastLock = null;
+        if (wifiManager != null) {
+            multicastLock = wifiManager.createMulticastLock("dlna_search");
+            multicastLock.acquire();
+            debugLog("已获取 MulticastLock");
+        } else {
+            debugLog("警告: 无法获取 WifiManager，组播可能被过滤");
         }
-        socket = new MulticastSocket();
-        socket.setReuseAddress(true);
-        socket.setSoTimeout(5000);
 
-        // 发送M-SEARCH
-        byte[] sendData = searchMessage.getBytes("UTF-8");
-        DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, multicastAddress, SSDP_PORT);
-        socket.send(sendPacket);
-
-        // 接收响应
-        byte[] receiveData = new byte[2048];
-        long endTime = System.currentTimeMillis() + 5000;
-
-        while (System.currentTimeMillis() < endTime && isSearching.get()) {
-            try {
-                DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
-                socket.receive(receivePacket);
-                String response = new String(receivePacket.getData(), 0, receivePacket.getLength(), "UTF-8");
-                parseResponse(response);
-            } catch (SocketTimeoutException e) {
-                break;
+        try {
+            if (socket != null && !socket.isClosed()) {
+                socket.close();
             }
-        }
+            socket = new MulticastSocket();
+            socket.setReuseAddress(true);
+            socket.setSoTimeout(5000);
 
-        if (socket != null && !socket.isClosed()) {
-            socket.close();
+            // Join the multicast group so responses are received on all devices.
+            // Use the WifiManager IP to find the correct WiFi network interface instead
+            // of InetAddress.getLocalHost(), which may return 127.0.0.1 on Android.
+            NetworkInterface wifiNetIf = null;
+            if (wifiManager != null) {
+                try {
+                    int ipInt = wifiManager.getConnectionInfo().getIpAddress();
+                    if (ipInt != 0) {
+                        byte[] ipBytes = {
+                            (byte) (ipInt & 0xff),
+                            (byte) ((ipInt >> 8) & 0xff),
+                            (byte) ((ipInt >> 16) & 0xff),
+                            (byte) ((ipInt >> 24) & 0xff)
+                        };
+                        InetAddress wifiAddr = InetAddress.getByAddress(ipBytes);
+                        wifiNetIf = NetworkInterface.getByInetAddress(wifiAddr);
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "Could not resolve WiFi interface", e);
+                }
+            }
+            if (wifiNetIf != null) {
+                socket.joinGroup(new java.net.InetSocketAddress(multicastAddress, SSDP_PORT),
+                        wifiNetIf);
+                debugLog("已加入组播组，WiFi网卡: " + wifiNetIf.getDisplayName());
+            } else {
+                socket.joinGroup(multicastAddress);
+                debugLog("已加入组播组 (默认网卡)");
+            }
+
+            debugLog("Socket 已创建，本地端口: " + socket.getLocalPort());
+
+            // 发送M-SEARCH
+            byte[] sendData = searchMessage.getBytes("UTF-8");
+            DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length,
+                    multicastAddress, SSDP_PORT);
+            socket.send(sendPacket);
+            debugLog("M-SEARCH 请求已发送，等待响应 (超时5秒)...");
+
+            // 接收响应
+            byte[] receiveData = new byte[2048];
+            long endTime = System.currentTimeMillis() + 5000;
+            int responseCount = 0;
+
+            while (System.currentTimeMillis() < endTime && isSearching.get()) {
+                try {
+                    DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
+                    socket.receive(receivePacket);
+                    responseCount++;
+                    String senderIp = receivePacket.getAddress().getHostAddress();
+                    String response = new String(receivePacket.getData(), 0,
+                            receivePacket.getLength(), "UTF-8");
+                    debugLog("收到响应 #" + responseCount + " 来自: " + senderIp);
+                    parseResponse(response, senderIp);
+                } catch (SocketTimeoutException e) {
+                    debugLog("接收超时，共收到 " + responseCount + " 个响应");
+                    break;
+                }
+            }
+
+            if (responseCount == 0) {
+                debugLog("未收到任何 SSDP 响应，请确认:");
+                debugLog("  1. 投屏设备已开机并在同一 WiFi");
+                debugLog("  2. 路由器未禁止组播(Multicast)");
+            }
+        } finally {
+            try {
+                if (socket != null && !socket.isClosed()) {
+                    socket.close();
+                }
+            } catch (Exception ignored) {}
+            if (multicastLock != null && multicastLock.isHeld()) {
+                multicastLock.release();
+                debugLog("已释放 MulticastLock");
+            }
         }
     }
 
-    private void parseResponse(String response) {
+    private void parseResponse(String response, String senderIp) {
         String location = extractHeader(response, "LOCATION");
         String usn = extractHeader(response, "USN");
         String st = extractHeader(response, "ST");
 
         if (location != null && st != null && st.contains("MediaRenderer")) {
+            debugLog("发现 MediaRenderer: " + location);
             if (discoveryListener != null) {
                 discoveryListener.onDeviceFound(location, usn != null ? usn : "", "");
             }
+        } else {
+            String stInfo = st != null ? st : "(无ST)";
+            debugLog("忽略非MediaRenderer响应 [" + senderIp + "]: " + stInfo);
         }
     }
 
@@ -136,6 +219,13 @@ public class DLNAService extends Service {
         isSearching.set(false);
         if (socket != null && !socket.isClosed()) {
             socket.close();
+        }
+    }
+
+    private void debugLog(String message) {
+        Log.d(TAG, message);
+        if (discoveryListener != null) {
+            discoveryListener.onDebugLog(message);
         }
     }
 

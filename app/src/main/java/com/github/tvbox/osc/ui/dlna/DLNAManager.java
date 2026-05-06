@@ -40,6 +40,7 @@ public class DLNAManager {
         void onDeviceAdded(DLNADevice device);
         void onDeviceRemoved(DLNADevice device);
         void onSearchComplete();
+        void onDebugLog(String message);
     }
 
     private DLNAManager() {}
@@ -64,9 +65,11 @@ public class DLNAManager {
         public void onServiceConnected(ComponentName name, IBinder service) {
             DLNAService.DLNABinder binder = (DLNAService.DLNABinder) service;
             dlnaService = binder.getService();
+            debugLog("Service 已连接，开始搜索...");
             dlnaService.setDiscoveryListener(new DLNAService.OnDeviceDiscoveryListener() {
                 @Override
                 public void onDeviceFound(String location, String usn, String friendlyName) {
+                    debugLog("正在获取设备描述: " + location);
                     // 获取设备详细信息
                     fetchDeviceDescription(location, usn);
                 }
@@ -74,11 +77,17 @@ public class DLNAManager {
                 @Override
                 public void onSearchComplete() {
                     Log.d(TAG, "Search complete, found " + deviceList.size() + " devices");
+                    debugLog("SSDP搜索完成，共发现 " + deviceList.size() + " 个设备");
                     mainHandler.post(() -> {
                         if (listener != null) {
                             listener.onSearchComplete();
                         }
                     });
+                }
+
+                @Override
+                public void onDebugLog(String message) {
+                    debugLog(message);
                 }
             });
             dlnaService.searchDevices();
@@ -86,6 +95,7 @@ public class DLNAManager {
 
         @Override
         public void onServiceDisconnected(ComponentName name) {
+            debugLog("Service 连接断开");
             dlnaService = null;
             isBound = false;
         }
@@ -119,7 +129,10 @@ public class DLNAManager {
     public void search() {
         if (dlnaService != null) {
             deviceList.clear();
+            debugLog("手动刷新，重新搜索...");
             dlnaService.searchDevices();
+        } else {
+            debugLog("Service 未连接，无法搜索");
         }
     }
 
@@ -144,17 +157,25 @@ public class DLNAManager {
     private void fetchDeviceDescription(String location, String usn) {
         executor.execute(() -> {
             try {
+                debugLog("HTTP请求设备描述: " + location);
                 Request request = new Request.Builder().url(location).build();
                 Response response = httpClient.newCall(request).execute();
                 if (response.isSuccessful() && response.body() != null) {
                     String xml = response.body().string();
+                    debugLog("收到设备描述 XML (" + xml.length() + " 字节)");
                     DLNADevice device = parseDeviceXml(xml, location, usn);
                     if (device != null && device.getAvTransportControlUrl() != null) {
+                        debugLog("解析成功: " + device.getName() + " | " + device.getAvTransportControlUrl());
                         addDevice(device);
+                    } else {
+                        debugLog("设备不支持 AVTransport 服务，跳过: " + location);
                     }
+                } else {
+                    debugLog("HTTP请求失败 code=" + response.code() + " url=" + location);
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Failed to fetch device description: " + location, e);
+                debugLog("获取设备描述出错: " + e.getMessage());
             }
         });
     }
@@ -245,9 +266,19 @@ public class DLNAManager {
         mainHandler.post(() -> {
             if (!deviceList.contains(device)) {
                 deviceList.add(device);
+                debugLog("已添加设备: " + device.getName());
                 if (listener != null) {
                     listener.onDeviceAdded(device);
                 }
+            }
+        });
+    }
+
+    private void debugLog(String message) {
+        Log.d(TAG, message);
+        mainHandler.post(() -> {
+            if (listener != null) {
+                listener.onDebugLog(message);
             }
         });
     }

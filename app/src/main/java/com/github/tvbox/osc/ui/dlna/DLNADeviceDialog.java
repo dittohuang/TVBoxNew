@@ -6,6 +6,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -16,8 +17,11 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.github.tvbox.osc.R;
 import com.github.tvbox.osc.ui.dialog.BaseDialog;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 public class DLNADeviceDialog extends BaseDialog {
 
@@ -27,6 +31,11 @@ public class DLNADeviceDialog extends BaseDialog {
     private Runnable refreshRunnable;
     private DLNAManager.OnDeviceChangeListener deviceChangeListener;
     private boolean isSearching = true;
+    private TextView tvDebugLog;
+    private ScrollView debugScrollView;
+    private final SimpleDateFormat timeFmt = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
+    private static final int MAX_LOG_LINES = 50;
+    private final List<String> debugLines = new ArrayList<>();
 
     public interface OnDeviceSelectedListener {
         void onDeviceSelected(DLNADevice device);
@@ -43,6 +52,10 @@ public class DLNADeviceDialog extends BaseDialog {
 
         TextView title = findViewById(R.id.title);
         title.setText("选择投屏设备");
+
+        tvDebugLog = findViewById(R.id.tv_debug_log);
+        debugScrollView = findViewById(R.id.debug_scroll);
+        appendDebugLog("打开投屏对话框，开始搜索...");
 
         RecyclerView recyclerView = findViewById(R.id.device_list);
         adapter = new DeviceAdapter(new DiffUtil.ItemCallback<DLNADevice>() {
@@ -80,6 +93,11 @@ public class DLNADeviceDialog extends BaseDialog {
                     refreshDeviceList();
                 });
             }
+
+            @Override
+            public void onDebugLog(String message) {
+                mainHandler.post(() -> appendDebugLog(message));
+            }
         };
         DLNAManager.getInstance().setOnDeviceChangeListener(deviceChangeListener);
 
@@ -94,6 +112,7 @@ public class DLNADeviceDialog extends BaseDialog {
         findViewById(R.id.btn_refresh).setOnClickListener(v -> {
             isSearching = true;
             refreshDeviceList();
+            appendDebugLog("--- 手动刷新 ---");
             DLNAManager.getInstance().search();
         });
     }
@@ -116,6 +135,26 @@ public class DLNADeviceDialog extends BaseDialog {
 
     public void setOnDeviceSelectedListener(OnDeviceSelectedListener listener) {
         this.deviceSelectedListener = listener;
+    }
+
+    private void appendDebugLog(String message) {
+        if (tvDebugLog == null) return;
+        String time = timeFmt.format(new Date());
+        debugLines.add("[" + time + "] " + message);
+        // Keep at most MAX_LOG_LINES lines in memory
+        if (debugLines.size() > MAX_LOG_LINES) {
+            debugLines.remove(0);
+        }
+        // Rebuild text from the in-memory list
+        StringBuilder sb = new StringBuilder();
+        for (String line : debugLines) {
+            sb.append(line).append("\n");
+        }
+        tvDebugLog.setText(sb.toString());
+        // Auto-scroll to bottom
+        if (debugScrollView != null) {
+            debugScrollView.post(() -> debugScrollView.fullScroll(View.FOCUS_DOWN));
+        }
     }
 
     @Override
