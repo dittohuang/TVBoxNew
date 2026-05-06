@@ -1,26 +1,30 @@
 package com.github.tvbox.osc.ui.dlna;
 
-import org.fourthline.cling.model.meta.Device;
-
 /**
  * DLNA设备封装类
  */
 public class DLNADevice {
     private String name;
     private String uuid;
-    private Device device; // Cling设备对象
+    private String location; // 设备描述文件URL
+    private String avTransportControlUrl; // AVTransport控制URL
+    private String baseUrl; // 设备基础URL
 
-    public DLNADevice(Device device) {
-        this.device = device;
-        this.name = device.getDetails() != null && device.getDetails().getFriendlyName() != null 
-                ? device.getDetails().getFriendlyName() 
-                : "未知设备";
-        this.uuid = device.getIdentity().getUdn().getIdentifierString();
+    public DLNADevice(String name, String uuid, String location) {
+        this.name = name != null ? name : "未知设备";
+        this.uuid = uuid != null ? uuid : "";
+        this.location = location;
     }
 
     public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
     public String getUuid() { return uuid; }
-    public Device getDevice() { return device; }
+    public void setUuid(String uuid) { this.uuid = uuid; }
+    public String getLocation() { return location; }
+    public String getAvTransportControlUrl() { return avTransportControlUrl; }
+    public void setAvTransportControlUrl(String url) { this.avTransportControlUrl = url; }
+    public String getBaseUrl() { return baseUrl; }
+    public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
 
     @Override
     public boolean equals(Object o) {

@@ -144,10 +144,4 @@ dependencies {
 
     implementation 'com.github.getActivity:XXPermissions:13.6'
 
-    // DLNA投屏
-    implementation 'org.fourthline.cling:cling-core:2.1.2'
-    implementation 'org.fourthline.cling:cling-support:2.1.2'
-    implementation 'org.eclipse.jetty:jetty-server:8.1.22.v20160922'
-    implementation 'org.eclipse.jetty:jetty-servlet:8.1.22.v20160922'
-    implementation 'org.eclipse.jetty:jetty-client:8.1.22.v20160922'
 }

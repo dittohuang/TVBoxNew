@@ -4,32 +4,37 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.util.Log;
 
-import org.fourthline.cling.android.AndroidUpnpService;
-import org.fourthline.cling.model.message.header.STAllHeader;
-import org.fourthline.cling.model.message.header.UDADeviceTypeHeader;
-import org.fourthline.cling.model.meta.Device;
-import org.fourthline.cling.model.meta.LocalDevice;
-import org.fourthline.cling.model.meta.RemoteDevice;
-import org.fourthline.cling.model.types.UDADeviceType;
-import org.fourthline.cling.registry.DefaultRegistryListener;
-import org.fourthline.cling.registry.Registry;
-
+import java.io.StringReader;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+
+import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserFactory;
 
 public class DLNAManager {
     private static final String TAG = "DLNAManager";
     private static volatile DLNAManager instance;
-    
+
     private Context context;
-    private AndroidUpnpService upnpService;
+    private DLNAService dlnaService;
+    private boolean isBound = false;
     private List<DLNADevice> deviceList = new ArrayList<>();
     private OnDeviceChangeListener listener;
-    private boolean isBound = false;
-    private DeviceRegistryListener registryListener;
+    private OkHttpClient httpClient = new OkHttpClient();
+    private ExecutorService executor = Executors.newCachedThreadPool();
+    private Handler mainHandler = new Handler(Looper.getMainLooper());
 
     public interface OnDeviceChangeListener {
         void onDeviceAdded(DLNADevice device);
@@ -56,24 +61,26 @@ public class DLNAManager {
     private ServiceConnection serviceConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
-            upnpService = (AndroidUpnpService) service;
-            registryListener = new DeviceRegistryListener();
-            upnpService.getRegistry().addListener(registryListener);
-            
-            // 添加已发现的设备
-            for (Device device : upnpService.getRegistry().getDevices()) {
-                if (isMediaRenderer(device)) {
-                    addDevice(new DLNADevice(device));
+            DLNAService.DLNABinder binder = (DLNAService.DLNABinder) service;
+            dlnaService = binder.getService();
+            dlnaService.setDiscoveryListener(new DLNAService.OnDeviceDiscoveryListener() {
+                @Override
+                public void onDeviceFound(String location, String usn, String friendlyName) {
+                    // 获取设备详细信息
+                    fetchDeviceDescription(location, usn);
                 }
-            }
-            
-            // 发起搜索
-            upnpService.getControlPoint().search(new UDADeviceTypeHeader(new UDADeviceType("MediaRenderer")));
+
+                @Override
+                public void onSearchComplete() {
+                    Log.d(TAG, "Search complete, found " + deviceList.size() + " devices");
+                }
+            });
+            dlnaService.searchDevices();
         }
 
         @Override
         public void onServiceDisconnected(ComponentName name) {
-            upnpService = null;
+            dlnaService = null;
             isBound = false;
         }
     };
@@ -90,18 +97,23 @@ public class DLNAManager {
     }
 
     public void stopSearch() {
-        if (isBound && upnpService != null) {
-            if (registryListener != null) {
-                upnpService.getRegistry().removeListener(registryListener);
+        if (isBound) {
+            if (dlnaService != null) {
+                dlnaService.stopSearch();
             }
-            context.unbindService(serviceConnection);
+            try {
+                context.unbindService(serviceConnection);
+            } catch (Exception e) {
+                Log.e(TAG, "unbind error", e);
+            }
             isBound = false;
         }
     }
 
     public void search() {
-        if (upnpService != null) {
-            upnpService.getControlPoint().search(new UDADeviceTypeHeader(new UDADeviceType("MediaRenderer")));
+        if (dlnaService != null) {
+            deviceList.clear();
+            dlnaService.searchDevices();
         }
     }
 
@@ -113,59 +125,124 @@ public class DLNAManager {
         this.listener = listener;
     }
 
-    public AndroidUpnpService getUpnpService() {
-        return upnpService;
-    }
-
     public void destroy() {
         stopSearch();
         deviceList.clear();
         listener = null;
+        executor.shutdownNow();
+    }
+
+    /**
+     * 通过HTTP获取设备描述XML，解析设备名称和AVTransport控制URL
+     */
+    private void fetchDeviceDescription(String location, String usn) {
+        executor.execute(() -> {
+            try {
+                Request request = new Request.Builder().url(location).build();
+                Response response = httpClient.newCall(request).execute();
+                if (response.isSuccessful() && response.body() != null) {
+                    String xml = response.body().string();
+                    DLNADevice device = parseDeviceXml(xml, location, usn);
+                    if (device != null && device.getAvTransportControlUrl() != null) {
+                        addDevice(device);
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to fetch device description: " + location, e);
+            }
+        });
+    }
+
+    /**
+     * 解析设备描述XML，提取设备名称和AVTransport服务控制URL
+     */
+    private DLNADevice parseDeviceXml(String xml, String location, String usn) {
+        try {
+            XmlPullParserFactory factory = XmlPullParserFactory.newInstance();
+            factory.setNamespaceAware(true);
+            XmlPullParser parser = factory.newPullParser();
+            parser.setInput(new StringReader(xml));
+
+            String friendlyName = null;
+            String udn = null;
+            String avTransportControlUrl = null;
+            String baseUrl = null;
+            String currentServiceType = null;
+            String controlUrl = null;
+            boolean inService = false;
+
+            // 从location提取baseUrl
+            URL locationUrl = new URL(location);
+            baseUrl = locationUrl.getProtocol() + "://" + locationUrl.getHost() + ":" + locationUrl.getPort();
+
+            int eventType = parser.getEventType();
+            String currentTag = "";
+
+            while (eventType != XmlPullParser.END_DOCUMENT) {
+                switch (eventType) {
+                    case XmlPullParser.START_TAG:
+                        currentTag = parser.getName();
+                        if ("service".equals(currentTag)) {
+                            inService = true;
+                            currentServiceType = null;
+                            controlUrl = null;
+                        }
+                        break;
+                    case XmlPullParser.TEXT:
+                        String text = parser.getText().trim();
+                        if (!text.isEmpty()) {
+                            if ("friendlyName".equals(currentTag)) {
+                                friendlyName = text;
+                            } else if ("UDN".equals(currentTag)) {
+                                udn = text;
+                            } else if ("serviceType".equals(currentTag) && inService) {
+                                currentServiceType = text;
+                            } else if ("controlURL".equals(currentTag) && inService) {
+                                controlUrl = text;
+                            }
+                        }
+                        break;
+                    case XmlPullParser.END_TAG:
+                        if ("service".equals(parser.getName())) {
+                            if (currentServiceType != null &&
+                                currentServiceType.contains("AVTransport")) {
+                                avTransportControlUrl = controlUrl;
+                            }
+                            inService = false;
+                        }
+                        currentTag = "";
+                        break;
+                }
+                eventType = parser.next();
+            }
+
+            if (friendlyName != null && avTransportControlUrl != null) {
+                String uuid = udn != null ? udn.replace("uuid:", "") : usn;
+                DLNADevice device = new DLNADevice(friendlyName, uuid, location);
+
+                // 处理controlUrl（可能是相对路径或绝对路径）
+                if (avTransportControlUrl.startsWith("http")) {
+                    device.setAvTransportControlUrl(avTransportControlUrl);
+                } else {
+                    device.setAvTransportControlUrl(baseUrl + avTransportControlUrl);
+                }
+                device.setBaseUrl(baseUrl);
+                return device;
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Parse device XML error", e);
+        }
+        return null;
     }
 
     private void addDevice(DLNADevice device) {
-        if (!deviceList.contains(device)) {
-            deviceList.add(device);
-            if (listener != null) {
-                listener.onDeviceAdded(device);
+        mainHandler.post(() -> {
+            if (!deviceList.contains(device)) {
+                deviceList.add(device);
+                if (listener != null) {
+                    listener.onDeviceAdded(device);
+                }
             }
-        }
-    }
-
-    private void removeDevice(DLNADevice device) {
-        deviceList.remove(device);
-        if (listener != null) {
-            listener.onDeviceRemoved(device);
-        }
-    }
-
-    private boolean isMediaRenderer(Device device) {
-        return device.getType().getType().equals("MediaRenderer");
-    }
-
-    private class DeviceRegistryListener extends DefaultRegistryListener {
-        @Override
-        public void remoteDeviceAdded(Registry registry, RemoteDevice device) {
-            if (isMediaRenderer(device)) {
-                addDevice(new DLNADevice(device));
-            }
-        }
-
-        @Override
-        public void remoteDeviceRemoved(Registry registry, RemoteDevice device) {
-            if (isMediaRenderer(device)) {
-                removeDevice(new DLNADevice(device));
-            }
-        }
-
-        @Override
-        public void localDeviceAdded(Registry registry, LocalDevice device) {
-            // 不处理本地设备
-        }
-
-        @Override
-        public void localDeviceRemoved(Registry registry, LocalDevice device) {
-            // 不处理本地设备
-        }
+        });
     }
 }

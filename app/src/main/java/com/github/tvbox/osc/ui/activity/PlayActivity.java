@@ -587,9 +587,7 @@ public class PlayActivity extends BaseActivity {
                 isCasting = true;
 
                 // 创建DLNAPlayer
-                if (DLNAManager.getInstance().getUpnpService() != null) {
-                    dlnaPlayer = new DLNAPlayer(DLNAManager.getInstance().getUpnpService());
-                }
+                dlnaPlayer = new DLNAPlayer();
 
                 mController.updateCastState(true);
 
