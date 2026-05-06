@@ -310,5 +310,25 @@
             android:textColor="@android:color/white"
             android:textSize="22mm" />
 
+        <TextView
+            android:id="@+id/btn_cast"
+            android:layout_width="100mm"
+            android:layout_height="40mm"
+            android:layout_gravity="center_vertical"
+            android:layout_marginRight="6mm"
+            android:background="@drawable/shape_user_focus"
+            android:drawableLeft="@drawable/icon_cast"
+            android:drawablePadding="3mm"
+            android:ellipsize="end"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:gravity="center"
+            android:paddingLeft="5mm"
+            android:paddingRight="5mm"
+            android:singleLine="true"
+            android:text="投屏"
+            android:textColor="@android:color/white"
+            android:textSize="22mm" />
+
     </LinearLayout>
 </FrameLayout>

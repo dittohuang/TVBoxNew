@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="@dimen/vs_500"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:background="@drawable/shape_dialog_bg_main"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:padding="@dimen/vs_30">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="投屏播放中"
+            android:textColor="@color/color_CC000000"
+            android:textSize="@dimen/ts_26" />
+
+        <TextView
+            android:id="@+id/tv_cast_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/vs_10"
+            android:ellipsize="end"
+            android:singleLine="true"
+            android:textColor="@color/color_CC000000"
+            android:textSize="@dimen/ts_24" />
+
+        <TextView
+            android:id="@+id/tv_cast_device"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/vs_5"
+            android:ellipsize="end"
+            android:singleLine="true"
+            android:textColor="@color/color_99000000"
+            android:textSize="@dimen/ts_20" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/vs_15"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tv_cast_position"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="00:00"
+                android:textColor="@color/color_CC000000"
+                android:textSize="@dimen/ts_22" />
+
+            <ProgressBar
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="0dp"
+                android:layout_height="4dp"
+                android:layout_marginLeft="@dimen/vs_10"
+                android:layout_marginRight="@dimen/vs_10"
+                android:layout_weight="1"
+                android:max="100"
+                android:progress="0" />
+
+            <TextView
+                android:id="@+id/tv_cast_duration"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="00:00"
+                android:textColor="@color/color_CC000000"
+                android:textSize="@dimen/ts_22" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/vs_20"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/btn_cast_backward"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/button_dialog_main"
+                android:focusable="true"
+                android:padding="@dimen/vs_10"
+                android:text="-15s"
+                android:textColor="@android:color/white"
+                android:textSize="@dimen/ts_22" />
+
+            <TextView
+                android:id="@+id/btn_cast_play_pause"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="@dimen/vs_15"
+                android:layout_marginRight="@dimen/vs_15"
+                android:background="@drawable/button_dialog_main"
+                android:focusable="true"
+                android:padding="@dimen/vs_10"
+                android:text="暂停"
+                android:textColor="@android:color/white"
+                android:textSize="@dimen/ts_22" />
+
+            <TextView
+                android:id="@+id/btn_cast_forward"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/button_dialog_main"
+                android:focusable="true"
+                android:padding="@dimen/vs_10"
+                android:text="+15s"
+                android:textColor="@android:color/white"
+                android:textSize="@dimen/ts_22" />
+
+            <TextView
+                android:id="@+id/btn_cast_stop"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="@dimen/vs_15"
+                android:background="@drawable/button_dialog_main"
+                android:focusable="true"
+                android:padding="@dimen/vs_10"
+                android:text="停止投屏"
+                android:textColor="@android:color/white"
+                android:textSize="@dimen/ts_22" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+</FrameLayout>

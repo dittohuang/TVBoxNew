@@ -96,6 +96,23 @@ public class VodController extends BaseController {
     TextView mPlayerTimeStartBtn;
     TextView mPlayerTimeSkipBtn;
     TextView mPlayerTimeStepBtn;
+    TextView btnCast;
+
+    private CastClickListener castClickListener;
+
+    public interface CastClickListener {
+        void onCastClick();
+    }
+
+    public void setCastClickListener(CastClickListener listener) {
+        this.castClickListener = listener;
+    }
+
+    public void updateCastState(boolean isCasting) {
+        if (btnCast != null) {
+            btnCast.setText(isCasting ? "投屏中" : "投屏");
+        }
+    }
 
     @Override
     protected void initView() {
@@ -120,6 +137,17 @@ public class VodController extends BaseController {
         mPlayerTimeStartBtn = findViewById(R.id.play_time_start);
         mPlayerTimeSkipBtn = findViewById(R.id.play_time_end);
         mPlayerTimeStepBtn = findViewById(R.id.play_time_step);
+        btnCast = findViewById(R.id.btn_cast);
+        if (btnCast != null) {
+            btnCast.setOnClickListener(new OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (castClickListener != null) {
+                        castClickListener.onCastClick();
+                    }
+                }
+            });
+        }
 
         mGridView.setLayoutManager(new V7LinearLayoutManager(getContext(), 0, false));
         ParseAdapter parseAdapter = new ParseAdapter();

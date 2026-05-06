@@ -56,6 +56,11 @@ import com.github.tvbox.osc.util.MD5;
 import com.github.tvbox.osc.util.PlayerHelper;
 import com.github.tvbox.osc.util.thunder.Thunder;
 import com.github.tvbox.osc.viewmodel.SourceViewModel;
+import com.github.tvbox.osc.ui.dlna.DLNADevice;
+import com.github.tvbox.osc.ui.dlna.DLNADeviceDialog;
+import com.github.tvbox.osc.ui.dlna.DLNACastControlDialog;
+import com.github.tvbox.osc.ui.dlna.DLNAManager;
+import com.github.tvbox.osc.ui.dlna.DLNAPlayer;
 import com.lzy.okgo.OkGo;
 import com.lzy.okgo.callback.AbsCallback;
 import com.lzy.okgo.model.HttpHeaders;
@@ -200,6 +205,16 @@ public class PlayActivity extends BaseActivity {
             }
         });
         mVideoView.setVideoController(mController);
+        // 初始化DLNA
+        DLNAManager.getInstance().init(this);
+        DLNAManager.getInstance().startSearch();
+        // 设置投屏按钮回调
+        mController.setCastClickListener(new VodController.CastClickListener() {
+            @Override
+            public void onCastClick() {
+                showCastDeviceDialog();
+            }
+        });
         mVideoView.addOnStateChangeListener(new VideoView.SimpleOnStateChangeListener() {
             @Override
             public void onPlayStateChanged(int playState) {
@@ -259,6 +274,19 @@ public class PlayActivity extends BaseActivity {
                 if (mVideoView != null) {
                     mVideoView.release();
                     if (url != null) {
+                        // 保存当前播放URL和标题
+                        currentPlayUrl = url;
+                        if (mVodInfo != null && mVodInfo.seriesMap != null && mVodInfo.seriesMap.get(mVodInfo.playFlag) != null) {
+                            VodInfo.VodSeries vs = mVodInfo.seriesMap.get(mVodInfo.playFlag).get(mVodInfo.playIndex);
+                            currentPlayTitle = mVodInfo.name + " " + vs.name;
+                        }
+                        // 投屏模式处理
+                        if (isCasting && currentCastDevice != null && dlnaPlayer != null) {
+                            hideTip();
+                            dlnaPlayer.play(currentCastDevice, url, currentPlayTitle);
+                            showCastControlDialog();
+                            return;
+                        }
                         try {
                             int playerType = mVodPlayerCfg.getInt("pl");
                             if (playerType >= 10) {
@@ -437,6 +465,15 @@ public class PlayActivity extends BaseActivity {
         }
         stopLoadWebView(true);
         stopParse();
+        // 释放DLNA资源
+        if (dlnaPlayer != null) {
+            dlnaPlayer.disconnect();
+            dlnaPlayer = null;
+        }
+        DLNAManager.getInstance().destroy();
+        if (castControlDialog != null && castControlDialog.isShowing()) {
+            castControlDialog.dismiss();
+        }
     }
 
     private VodInfo mVodInfo;
@@ -444,6 +481,14 @@ public class PlayActivity extends BaseActivity {
     private String sourceKey;
     private SourceBean sourceBean;
     private boolean directPushMode;
+
+    // DLNA投屏相关
+    private boolean isCasting = false;
+    private DLNAPlayer dlnaPlayer;
+    private DLNADevice currentCastDevice;
+    private DLNACastControlDialog castControlDialog;
+    private String currentPlayUrl;
+    private String currentPlayTitle;
 
     private void playNext() {
         boolean hasNext = true;
@@ -532,6 +577,56 @@ public class PlayActivity extends BaseActivity {
     private String progressKey;
     private String parseFlag;
     private String webUrl;
+
+    private void showCastDeviceDialog() {
+        DLNADeviceDialog dialog = new DLNADeviceDialog(this);
+        dialog.setOnDeviceSelectedListener(new DLNADeviceDialog.OnDeviceSelectedListener() {
+            @Override
+            public void onDeviceSelected(DLNADevice device) {
+                currentCastDevice = device;
+                isCasting = true;
+
+                // 创建DLNAPlayer
+                if (DLNAManager.getInstance().getUpnpService() != null) {
+                    dlnaPlayer = new DLNAPlayer(DLNAManager.getInstance().getUpnpService());
+                }
+
+                mController.updateCastState(true);
+
+                // 如果当前已有播放URL，立即投屏
+                if (currentPlayUrl != null && dlnaPlayer != null) {
+                    dlnaPlayer.play(currentCastDevice, currentPlayUrl, currentPlayTitle);
+                    mVideoView.pause();
+                    showCastControlDialog();
+                }
+            }
+        });
+        dialog.show();
+    }
+
+    private void showCastControlDialog() {
+        if (castControlDialog != null && castControlDialog.isShowing()) {
+            castControlDialog.dismiss();
+        }
+        castControlDialog = new DLNACastControlDialog(this, dlnaPlayer);
+        castControlDialog.setTitle(currentPlayTitle);
+        if (currentCastDevice != null) {
+            castControlDialog.setDeviceName(currentCastDevice.getName());
+        }
+        castControlDialog.setOnStopCastListener(new DLNACastControlDialog.OnStopCastListener() {
+            @Override
+            public void onStopCast() {
+                isCasting = false;
+                currentCastDevice = null;
+                mController.updateCastState(false);
+                // 恢复本地播放
+                if (currentPlayUrl != null) {
+                    mVideoView.start();
+                }
+            }
+        });
+        castControlDialog.show();
+    }
 
     private void initParse(String flag, boolean useParse, String playUrl, final String url) {
         parseFlag = flag;
