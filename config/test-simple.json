@@ -195,110 +195,26 @@
     ],
     "lives": [
         {
-            "group": "央视频道",
+            "group": "央视",
             "channels": [
-                {
-                    "name": "CCTV1综合",
-                    "urls": [
-                        "http://mgsp-ali2.live.miguvideo.com:8088/migu/kailu/cctv1hd265/51/20191230/index.m3u8?msisdn=5f176bab6af73634d1983e1243b5d98a&mdspid=&spid=699004&netType=0&sid=2201057821&pid=2028597139&timestamp=20260501143903&Channel_ID=0116_2600034600-99000-201600010010028&ProgramID=608807420&ParentNodeID=-99&assertID=2201057821&client_ip=222.247.210.202&SecurityKey=20260501143903&promotionId=&mvid=2201057821&mcid=500020&playurlVersion=WX-A1-9.4.2-RELEASE&userid=&jmhm=&videocodec=h265&appCode=miguvideo_android&bean=mgspad&tid=android&conFee=0&encrypt=a52e446b1c35571707279867ad1e3946&sv=10004&ct=android"
-                    ]
-                },
-                {
-                    "name": "CCTV2财经",
-                    "urls": [
-                        "http://mgsp-hs2.live.miguvideo.com:8088/migu/kailu/cctv2hd265/54/20200407/index.m3u8?msisdn=5f176bab6af73634d1983e1243b5d98a&mdspid=&spid=699004&netType=0&sid=5500346945&pid=2028597139&timestamp=20260501143903&Channel_ID=0116_2600034600-99000-201600010010028&ProgramID=631780532&ParentNodeID=-99&assertID=5500346945&client_ip=222.247.210.202&SecurityKey=20260501143903&promotionId=&mvid=5101064231&mcid=500020&playurlVersion=WX-A1-9.4.2-RELEASE&userid=&jmhm=&videocodec=h265&appCode=miguvideo_android&bean=mgspad&tid=android&conFee=0&encrypt=f984618eec2a2c53974fe80e375f27bc&sv=10004&ct=android"
-                    ]
-                },
-                {
-                    "name": "CCTV3综艺",
-                    "urls": [
-                        "http://mgsp-hs2.live.miguvideo.com:8088/wd_r2/2018/ocn/cctv3hd/2000/index.m3u8?msisdn=5f176bab6af73634d1983e1243b5d98a&mdspid=&spid=699004&netType=0&sid=5500212864&pid=2028597139&timestamp=20260501143903&Channel_ID=0116_2600034600-99000-201600010010028&ProgramID=624878271&ParentNodeID=-99&assertID=5500212864&client_ip=222.247.210.202&SecurityKey=20260501143903&promotionId=&mvid=5100001683&mcid=500020&playurlVersion=WX-A1-9.4.2-RELEASE&userid=&jmhm=&videocodec=h264&appCode=miguvideo_android&bean=mgspad&tid=android&conFee=0&encrypt=bbbd63e4deab54443d9344a7d1b65bac&sv=10004&ct=android"
-                    ]
-                },
-                {
-                    "name": "CCTV4中文国际",
-                    "urls": [
-                        "http://mgsp-hs2.live.miguvideo.com:8088/migu/kailu/cctv4hd265/51/20191230/index.m3u8?msisdn=5f176bab6af73634d1983e1243b5d98a&mdspid=&spid=699004&netType=0&sid=5500346947&pid=2028597139&timestamp=20260501143903&Channel_ID=0116_2600034600-99000-201600010010028&ProgramID=631780421&ParentNodeID=-99&assertID=5500346947&client_ip=222.247.210.202&SecurityKey=20260501143903&promotionId=&mvid=5101064235&mcid=500020&playurlVersion=WX-A1-9.4.2-RELEASE&userid=&jmhm=&videocodec=h265&appCode=miguvideo_android&bean=mgspad&tid=android&conFee=0&encrypt=3eaa029c456e0d55ab5d7f14acc82e03&sv=10004&ct=android"
-                    ]
-                },
-                {
-                    "name": "CCTV5体育",
-                    "urls": [
-                        "http://mgsp-ws2.live.miguvideo.com:8088/migu/kailu/cctv5hd265/51/20191230/index.m3u8?msisdn=5f176bab6af73634d1983e1243b5d98a&mdspid=&spid=699004&netType=0&sid=5500516171&pid=2028597139&timestamp=20260501143903&Channel_ID=0116_2600034600-99000-201600010010028&ProgramID=641886683&ParentNodeID=-99&assertID=5500516171&client_ip=222.247.210.202&SecurityKey=20260501143903&promotionId=&mvid=5102048712&mcid=500020&playurlVersion=WX-A1-9.4.2-RELEASE&userid=&jmhm=&videocodec=h265&appCode=miguvideo_android&bean=mgspad&tid=android&conFee=0&encrypt=e27173c68c0d539c46e841989531ff4b&sv=10004&ct=android"
-                    ]
-                },
-                {
-                    "name": "CCTV5+体育赛事",
-                    "urls": [
-                        "http://mgsp-cty2.live.miguvideo.com:8088/wd_r2/cctv/cctv5plusnew/1200/index.m3u8?msisdn=5f176bab6af73634d1983e1243b5d98a&mdspid=&spid=699004&netType=0&sid=5500516288&pid=2028597139&timestamp=20260501143903&Channel_ID=0116_2600034600-99000-201600010010028&ProgramID=641886773&ParentNodeID=-99&assertID=5500516288&client_ip=222.247.210.202&SecurityKey=20260501143903&promotionId=&mvid=5102048803&mcid=500020&playurlVersion=WX-A1-9.4.2-RELEASE&userid=&jmhm=&videocodec=h264&appCode=miguvideo_android&bean=mgspad&tid=android&conFee=0&encrypt=3ade25b83be047fc8d097ec79c39ab58&sv=10004&ct=android"
-                    ]
-                },
-                {
-                    "name": "CCTV6电影",
-                    "urls": [
-                        "http://mgsp-zy2.live.miguvideo.com:8088/migu/kailu/cctv6hd265/54/20200407/index.m3u8?msisdn=5f176bab6af73634d1983e1243b5d98a&mdspid=&spid=699004&netType=0&sid=5500212872&pid=2028597139&timestamp=20260501143903&Channel_ID=0116_2600034600-99000-201600010010028&ProgramID=624878396&ParentNodeID=-99&assertID=5500212872&client_ip=222.247.210.202&SecurityKey=20260501143903&promotionId=&mvid=5100001694&mcid=500020&playurlVersion=WX-A1-9.4.2-RELEASE&userid=&jmhm=&videocodec=h265&appCode=miguvideo_android&bean=mgspad&tid=android&conFee=0&encrypt=9f14e357211452e830d01ab159aeefbd&sv=10004&ct=android"
-                    ]
-                },
-                {
-                    "name": "CCTV7国防军事",
-                    "urls": [
-                        "http://mgsp-hs2.live.miguvideo.com:8088/migu/kailu/20200324/cctv7hd/51/index.m3u8?msisdn=5f176bab6af73634d1983e1243b5d98a&mdspid=&spid=699004&netType=0&sid=5501083622&pid=2028597139&timestamp=20260501143903&Channel_ID=0116_2600034600-99000-201600010010028&ProgramID=673168121&ParentNodeID=-99&assertID=5501083622&client_ip=222.247.210.202&SecurityKey=20260501143903&promotionId=&mvid=5102910278&mcid=500020&playurlVersion=WX-A1-9.4.2-RELEASE&userid=&jmhm=&videocodec=h264&appCode=miguvideo_android&bean=mgspad&tid=android&conFee=0&encrypt=a281c38be877202236b435422544071d&sv=10004&ct=android"
-                    ]
-                },
-                {
-                    "name": "CCTV8电视剧",
-                    "urls": [
-                        "http://mgsp-ali2.live.miguvideo.com:8088/migu/kailu/cctv8hd265/54/20200407/index.m3u8?msisdn=5f176bab6af73634d1983e1243b5d98a&mdspid=&spid=699004&netType=0&sid=5500212868&pid=2028597139&timestamp=20260501143903&Channel_ID=0116_2600034600-99000-201600010010028&ProgramID=624878356&ParentNodeID=-99&assertID=5500212868&client_ip=222.247.210.202&SecurityKey=20260501143903&promotionId=&mvid=5100001695&mcid=500020&playurlVersion=WX-A1-9.4.2-RELEASE&userid=&jmhm=&videocodec=h265&appCode=miguvideo_android&bean=mgspad&tid=android&conFee=0&encrypt=7a313e4fed6db8fa55b349dce7e78390&sv=10004&ct=android"
-                    ]
-                },
-                {
-                    "name": "CCTV9纪录",
-                    "urls": [
-                        "http://mgsp-hs2.live.miguvideo.com:8088/migu/kailu/20200324/cctv9hd/51/index.m3u8?msisdn=5f176bab6af73634d1983e1243b5d98a&mdspid=&spid=699004&netType=0&sid=5501083624&pid=2028597139&timestamp=20260501143903&Channel_ID=0116_2600034600-99000-201600010010028&ProgramID=673168140&ParentNodeID=-99&assertID=5501083624&client_ip=222.247.210.202&SecurityKey=20260501143903&promotionId=&mvid=5102910384&mcid=500020&playurlVersion=WX-A1-9.4.2-RELEASE&userid=&jmhm=&videocodec=h264&appCode=miguvideo_android&bean=mgspad&tid=android&conFee=0&encrypt=045f91e0e9fc6942ebbf344e76ae6fd4&sv=10004&ct=android"
-                    ]
-                },
-                {
-                    "name": "CCTV10科教",
-                    "urls": [
-                        "http://mgsp-hs2.live.miguvideo.com:8088/migu/kailu/cctv10hd265/54/20200407/index.m3u8?msisdn=5f176bab6af73634d1983e1243b5d98a&mdspid=&spid=699004&netType=0&sid=5500212874&pid=2028597139&timestamp=20260501143903&Channel_ID=0116_2600034600-99000-201600010010028&ProgramID=624878405&ParentNodeID=-99&assertID=5500212874&client_ip=222.247.210.202&SecurityKey=20260501143903&promotionId=&mvid=5100001696&mcid=500020&playurlVersion=WX-A1-9.4.2-RELEASE&userid=&jmhm=&videocodec=h265&appCode=miguvideo_android&bean=mgspad&tid=android&conFee=0&encrypt=c23b9a3694fc231a34dcb61892f1befe&sv=10004&ct=android"
-                    ]
-                },
-                {
-                    "name": "CCTV11戏曲",
-                    "urls": [
-                        "http://mgsp-cty2.live.miguvideo.com:8088/migu/kailu/cctv11hd265/54/20200407/index.m3u8?msisdn=5f176bab6af73634d1983e1243b5d98a&mdspid=&spid=699004&netType=0&sid=5500988610&pid=2028597139&timestamp=20260501143903&Channel_ID=0116_2600034600-99000-201600010010028&ProgramID=667987558&ParentNodeID=-99&assertID=5500988610&client_ip=222.247.210.202&SecurityKey=20260501143903&promotionId=&mvid=5102751362&mcid=500020&playurlVersion=WX-A1-9.4.2-RELEASE&userid=&jmhm=&videocodec=h265&appCode=miguvideo_android&bean=mgspad&tid=android&conFee=0&encrypt=fe3531185dbf642230eff940d9f74f6b&sv=10004&ct=android"
-                    ]
-                },
-                {
-                    "name": "CCTV12社会与法",
-                    "urls": [
-                        "http://mgsp-yx2.live.miguvideo.com:8088/migu/kailu/20200324/cctv12hd/51/index.m3u8?msisdn=5f176bab6af73634d1983e1243b5d98a&mdspid=&spid=699004&netType=0&sid=5501083627&pid=2028597139&timestamp=20260501143903&Channel_ID=0116_2600034600-99000-201600010010028&ProgramID=673168185&ParentNodeID=-99&assertID=5501083627&client_ip=222.247.210.202&SecurityKey=20260501143903&promotionId=&mvid=5102910389&mcid=500020&playurlVersion=WX-A1-9.4.2-RELEASE&userid=&jmhm=&videocodec=h264&appCode=miguvideo_android&bean=mgspad&tid=android&conFee=0&encrypt=60bdbcb12c487776f2e5800f212877e1&sv=10004&ct=android"
-                    ]
-                },
-                {
-                    "name": "CCTV13新闻",
-                    "urls": [
-                        "http://mgsp-zy2.live.miguvideo.com:8088/envivo_x/2018/SD/cctv13/2000/index.m3u8?msisdn=5f176bab6af73634d1983e1243b5d98a&mdspid=&spid=699004&netType=0&sid=2202208864&pid=2028597139&timestamp=20260501143903&Channel_ID=0116_2600034600-99000-201600010010028&ProgramID=608807423&ParentNodeID=-99&assertID=2202208864&client_ip=222.247.210.202&SecurityKey=20260501143903&promotionId=&mvid=2202208864&mcid=500020&playurlVersion=WX-A1-9.4.2-RELEASE&userid=&jmhm=&videocodec=h264&appCode=miguvideo_android&bean=mgspad&tid=android&conFee=0&encrypt=3797e86b1188adadf92134af5654d333&sv=10004&ct=android"
-                    ]
-                },
-                {
-                    "name": "CCTV14少儿",
-                    "urls": [
-                        "http://mgsp-hs2.live.miguvideo.com:8088/migu/kailu/cctv14hd265/54/20200407/index.m3u8?msisdn=5f176bab6af73634d1983e1243b5d98a&mdspid=&spid=699004&netType=0&sid=5500212875&pid=2028597139&timestamp=20260501143903&Channel_ID=0116_2600034600-99000-201600010010028&ProgramID=624878440&ParentNodeID=-99&assertID=5500212875&client_ip=222.247.210.202&SecurityKey=20260501143903&promotionId=&mvid=5100001697&mcid=500020&playurlVersion=WX-A1-9.4.2-RELEASE&userid=&jmhm=&videocodec=h265&appCode=miguvideo_android&bean=mgspad&tid=android&conFee=0&encrypt=e313b6a89f20cf85141c1bfc60c7cf0f&sv=10004&ct=android"
-                    ]
-                },
-                {
-                    "name": "CCTV15音乐",
-                    "urls": [
-                        "http://mgsp-hs2.live.miguvideo.com:8088/migu/kailu/20200324/cctv15hd/51/index.m3u8?msisdn=5f176bab6af73634d1983e1243b5d98a&mdspid=&spid=699004&netType=0&sid=5501083628&pid=2028597139&timestamp=20260501143903&Channel_ID=0116_2600034600-99000-201600010010028&ProgramID=673168223&ParentNodeID=-99&assertID=5501083628&client_ip=222.247.210.202&SecurityKey=20260501143903&promotionId=&mvid=5102910391&mcid=500020&playurlVersion=WX-A1-9.4.2-RELEASE&userid=&jmhm=&videocodec=h264&appCode=miguvideo_android&bean=mgspad&tid=android&conFee=0&encrypt=83e7492b342dcdb720fe73769c150bde&sv=10004&ct=android"
-                    ]
-                },
-                {
-                    "name": "CCTV17农业农村",
-                    "urls": [
-                        "http://mgsp-ws2.live.miguvideo.com:8088/migu/kailu/20200324/cctv17hd/51/index.m3u8?msisdn=5f176bab6af73634d1983e1243b5d98a&mdspid=&spid=699004&netType=0&sid=5501083631&pid=2028597139&timestamp=20260501143903&Channel_ID=0116_2600034600-99000-201600010010028&ProgramID=673168256&ParentNodeID=-99&assertID=5501083631&client_ip=222.247.210.202&SecurityKey=20260501143903&promotionId=&mvid=5102910396&mcid=500020&playurlVersion=WX-A1-9.4.2-RELEASE&userid=&jmhm=&videocodec=h264&appCode=miguvideo_android&bean=mgspad&tid=android&conFee=0&encrypt=068972a90e13e835a4671dbbf13ebd48&sv=10004&ct=android"
-                    ]
-                }
+                {"name": "CCTV-13 新闻", "urls": ["https://tv.cctv.com/live/cctv13/"]},
+                {"name": "CCTV-1 综合", "urls": ["https://tv.cctv.com/live/cctv1/"]},
+                {"name": "CCTV-2 财经", "urls": ["https://tv.cctv.com/live/cctv2/"]},
+                {"name": "CCTV-3 综艺", "urls": ["https://tv.cctv.com/live/cctv3/"]},
+                {"name": "CCTV-4 中文国际", "urls": ["https://tv.cctv.com/live/cctv4/"]},
+                {"name": "CCTV-5 体育", "urls": ["https://tv.cctv.com/live/cctv5/"]},
+                {"name": "CCTV-5+ 体育赛事", "urls": ["https://tv.cctv.com/live/cctv5plus/"]},
+                {"name": "CCTV-6 电影", "urls": ["https://tv.cctv.com/live/cctv6/"]},
+                {"name": "CCTV-7 国防军事", "urls": ["https://tv.cctv.com/live/cctv7/"]},
+                {"name": "CCTV-8 电视剧", "urls": ["https://tv.cctv.com/live/cctv8/"]},
+                {"name": "CCTV-9 纪录", "urls": ["https://tv.cctv.com/live/cctvjilu/"]},
+                {"name": "CCTV-10 科教", "urls": ["https://tv.cctv.com/live/cctv10/"]},
+                {"name": "CCTV-11 戏曲", "urls": ["https://tv.cctv.com/live/cctv11/"]},
+                {"name": "CCTV-12 社会与法", "urls": ["https://tv.cctv.com/live/cctv12/"]},
+                {"name": "CCTV-14 少儿", "urls": ["https://tv.cctv.com/live/cctvchild/"]},
+                {"name": "CCTV-15 音乐", "urls": ["https://tv.cctv.com/live/cctv15/"]},
+                {"name": "CCTV-16 奥林匹克", "urls": ["https://tv.cctv.com/live/cctv16/"]},
+                {"name": "CCTV-17 农业农村", "urls": ["https://tv.cctv.com/live/cctv17/"]}
             ]
         }
     ],
