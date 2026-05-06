@@ -26,6 +26,7 @@ public class DLNADeviceDialog extends BaseDialog {
     private Handler mainHandler = new Handler(Looper.getMainLooper());
     private Runnable refreshRunnable;
     private DLNAManager.OnDeviceChangeListener deviceChangeListener;
+    private boolean isSearching = true;
 
     public interface OnDeviceSelectedListener {
         void onDeviceSelected(DLNADevice device);
@@ -71,6 +72,14 @@ public class DLNADeviceDialog extends BaseDialog {
             public void onDeviceRemoved(DLNADevice device) {
                 mainHandler.post(() -> refreshDeviceList());
             }
+
+            @Override
+            public void onSearchComplete() {
+                mainHandler.post(() -> {
+                    isSearching = false;
+                    refreshDeviceList();
+                });
+            }
         };
         DLNAManager.getInstance().setOnDeviceChangeListener(deviceChangeListener);
 
@@ -83,6 +92,8 @@ public class DLNADeviceDialog extends BaseDialog {
 
         // 刷新按钮
         findViewById(R.id.btn_refresh).setOnClickListener(v -> {
+            isSearching = true;
+            refreshDeviceList();
             DLNAManager.getInstance().search();
         });
     }
@@ -94,7 +105,12 @@ public class DLNADeviceDialog extends BaseDialog {
         // 更新空提示
         TextView emptyTip = findViewById(R.id.empty_tip);
         if (emptyTip != null) {
-            emptyTip.setVisibility(devices.isEmpty() ? View.VISIBLE : View.GONE);
+            if (devices.isEmpty()) {
+                emptyTip.setVisibility(View.VISIBLE);
+                emptyTip.setText(isSearching ? "正在搜索设备..." : "未发现设备，请确认设备与手机在同一网络");
+            } else {
+                emptyTip.setVisibility(View.GONE);
+            }
         }
     }
 

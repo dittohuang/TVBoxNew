@@ -39,6 +39,7 @@ public class DLNAManager {
     public interface OnDeviceChangeListener {
         void onDeviceAdded(DLNADevice device);
         void onDeviceRemoved(DLNADevice device);
+        void onSearchComplete();
     }
 
     private DLNAManager() {}
@@ -73,6 +74,11 @@ public class DLNAManager {
                 @Override
                 public void onSearchComplete() {
                     Log.d(TAG, "Search complete, found " + deviceList.size() + " devices");
+                    mainHandler.post(() -> {
+                        if (listener != null) {
+                            listener.onSearchComplete();
+                        }
+                    });
                 }
             });
             dlnaService.searchDevices();

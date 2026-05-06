@@ -81,7 +81,7 @@ public class DLNAService extends Service {
         if (socket != null && !socket.isClosed()) {
             socket.close();
         }
-        socket = new MulticastSocket(null);
+        socket = new MulticastSocket();
         socket.setReuseAddress(true);
         socket.setSoTimeout(5000);
 
