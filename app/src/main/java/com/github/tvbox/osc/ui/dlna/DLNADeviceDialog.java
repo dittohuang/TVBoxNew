@@ -11,6 +11,7 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.DiffUtil;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.ListAdapter;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -58,6 +59,7 @@ public class DLNADeviceDialog extends BaseDialog {
         appendDebugLog("打开投屏对话框，开始搜索...");
 
         RecyclerView recyclerView = findViewById(R.id.device_list);
+        recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         adapter = new DeviceAdapter(new DiffUtil.ItemCallback<DLNADevice>() {
             @Override
             public boolean areItemsTheSame(@NonNull DLNADevice oldItem, @NonNull DLNADevice newItem) {
