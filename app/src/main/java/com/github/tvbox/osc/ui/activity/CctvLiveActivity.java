@@ -46,6 +46,7 @@ public class CctvLiveActivity extends BaseActivity {
 
     private WebView webView;
     private TextView tvChannelName;
+    private TextView tvQualityStatus;
     private LinearLayout channelMenuContainer;
     private TvRecyclerView channelRecyclerView;
     private View loadingOverlay;
@@ -89,16 +90,19 @@ public class CctvLiveActivity extends BaseActivity {
     protected void init() {
         webView = findViewById(R.id.webView);
         tvChannelName = findViewById(R.id.tvChannelName);
+        tvQualityStatus = findViewById(R.id.tvQualityStatus);
         channelMenuContainer = findViewById(R.id.channelMenuContainer);
         channelRecyclerView = findViewById(R.id.channelRecyclerView);
         loadingOverlay = findViewById(R.id.loadingOverlay);
         tvLoadingStatus = findViewById(R.id.tvLoadingStatus);
         channelMenuContainer.bringToFront();
         tvChannelName.bringToFront();
+        tvQualityStatus.bringToFront();
         loadingOverlay.bringToFront();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             channelMenuContainer.setElevation(20f);
             tvChannelName.setElevation(21f);
+            tvQualityStatus.setElevation(21f);
             loadingOverlay.setElevation(19f);
         }
         initChannels();
@@ -273,6 +277,7 @@ public class CctvLiveActivity extends BaseActivity {
         if (channels.isEmpty()) {
             return;
         }
+        updateQualityStatus("检测中");
         showLoadingOverlay();
         ChannelItem item = channels.get(currentChannelIndex);
         if (channelMenuAdapter != null) {
@@ -398,17 +403,28 @@ public class CctvLiveActivity extends BaseActivity {
                 + "style.textContent='html,body{background:#000 !important;overflow:hidden !important;} body>*:not(#tvbox-cctv-container){visibility:hidden !important;} video{background:#000 !important;} .vjs-big-play-button,.video-play-btn,.play-btn,[class*=play-btn],[class*=play-button],[class*=player-control],[class*=toolbar],[class*=header],[class*=nav],[class*=menu]{display:none !important;opacity:0 !important;visibility:hidden !important;}';"
                 + "document.head&&document.head.appendChild(style);"
                 + "var notified=false;"
-                + "var qualityLocked=false;"
+                + "var lastReportedQuality='';"
+                + "var qualityLockDone=false;"
                 + "function notifyPlaying(){if(notified){return;} notified=true; if(window.AndroidCctvBridge&&window.AndroidCctvBridge.onVideoPlaying){window.AndroidCctvBridge.onVideoPlaying();}}"
                 + "function findByKeyword(nodes, keyword){for(var i=0;i<nodes.length;i++){var t=(nodes[i].textContent||'').replace(/\\s+/g,''); if(t.indexOf(keyword)>=0){return nodes[i];}} return null;}"
-                + "function forceBestQuality(){"
-                + "if(qualityLocked){return true;}"
+                + "function getSelectedQuality(){"
                 + "try{"
+                + "var list=document.querySelectorAll('#player_resolution_bar_player [itemvalue]');"
+                + "for(var i=0;i<list.length;i++){var color=window.getComputedStyle(list[i]).color;var active=list[i].classList.contains('selected')||list[i].getAttribute('aria-checked')==='true';if(active||color.indexOf('191, 6, 20')>=0||color.indexOf('rgb(191')>=0){return list[i].textContent.trim();}}"
+                + "}catch(e){}"
+                + "return null;"
+                + "}"
+                + "function reportQuality(qualityName){if(!qualityName||qualityName===lastReportedQuality){return;} lastReportedQuality=qualityName; if(window.AndroidCctvBridge&&window.AndroidCctvBridge.onQualityChanged){window.AndroidCctvBridge.onQualityChanged(qualityName);}}"
+                + "function lockPreferredQualityOnce(){"
+                + "try{"
+                + "if(qualityLockDone){return true;}"
                 + "var list=document.querySelectorAll('#player_resolution_bar_player [itemvalue]');"
                 + "var menuItems=document.querySelectorAll('.vjs-playback-quality .vjs-menu-item,[class*=quality] .vjs-menu-item,[class*=quality] [role=menuitem],[class*=resolution] [itemvalue],[class*=resolution] li,[class*=quality] li');"
                 + "var target=findByKeyword(list,'超清')||findByKeyword(menuItems,'超清');"
-                + "if(!target){target=findByKeyword(list,'高清')||findByKeyword(menuItems,'高清');}"
-                + "if(target){target.click(); qualityLocked=true; return true;}"
+                + "var qualityName='超清';"
+                + "if(!target){target=findByKeyword(list,'高清')||findByKeyword(menuItems,'高清'); qualityName='高清';}"
+                + "if(target){var current=getSelectedQuality();if(current!==qualityName){target.click();current=qualityName;} qualityLockDone=true; reportQuality(current||qualityName); return true;}"
+                + "var selected=getSelectedQuality();if(selected){reportQuality(selected);}"
                 + "}catch(e){}"
                 + "return false;"
                 + "}"
@@ -434,13 +450,22 @@ public class CctvLiveActivity extends BaseActivity {
                 + "count++;"
                 + "var video=document.querySelector('video');"
                 + "moveVideo(video);"
-                + "if(count<60 || count%10===0){forceBestQuality();}"
+                + "lockPreferredQualityOnce();"
+                + "var selected=getSelectedQuality();if(selected){reportQuality(selected);}"
                 + "clickMaybe('.vjs-big-play-button')||clickMaybe('.video-play-btn')||clickMaybe('.play-btn')||clickMaybe('[class*=play]');"
                 + "if(video&&video.readyState>2){moveVideo(video); if(video.currentTime>0||!video.paused){notifyPlaying();}}"
-                + "if(count>150){clearInterval(timer);window.__tvboxCctvInjected=false;}"
-                + "},200);"
+                + "if(count>300){clearInterval(timer);window.__tvboxCctvInjected=false;}"
+                + "},500);"
                 + "})();";
         evaluateScript(script);
+    }
+
+    private void updateQualityStatus(String qualityName) {
+        if (tvQualityStatus == null) {
+            return;
+        }
+        tvQualityStatus.setText(qualityName);
+        tvQualityStatus.setVisibility(View.VISIBLE);
     }
 
     private void showLoadingOverlay() {
@@ -461,6 +486,7 @@ public class CctvLiveActivity extends BaseActivity {
         }
         channelMenuContainer.bringToFront();
         tvChannelName.bringToFront();
+        tvQualityStatus.bringToFront();
     }
 
     private void evaluateScript(String script) {
@@ -571,6 +597,16 @@ public class CctvLiveActivity extends BaseActivity {
                 @Override
                 public void run() {
                     hideLoadingOverlay();
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void onQualityChanged(final String qualityName) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    updateQualityStatus(qualityName);
                 }
             });
         }
