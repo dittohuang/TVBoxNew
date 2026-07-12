@@ -8,6 +8,7 @@ import android.os.Environment;
 import com.github.tvbox.osc.R;
 import com.github.tvbox.osc.api.ApiConfig;
 import com.github.tvbox.osc.event.ServerEvent;
+import com.github.tvbox.osc.ui.dlna.DLNAManager;
 import com.github.tvbox.osc.util.FileUtils;
 import com.github.tvbox.osc.util.OkGoHelper;
 import com.google.gson.JsonArray;
@@ -20,12 +21,16 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
+import java.net.URL;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -54,6 +59,7 @@ public class RemoteServer extends NanoHTTPD {
     private DataReceiver mDataReceiver;
     private ArrayList<RequestProcess> getRequestList = new ArrayList<>();
     private ArrayList<RequestProcess> postRequestList = new ArrayList<>();
+    private final okhttp3.OkHttpClient dlnaProxyClient = new okhttp3.OkHttpClient();
 
     public RemoteServer(int port, Context context) {
         super(port);
@@ -148,6 +154,8 @@ public class RemoteServer extends NanoHTTPD {
                         rs = new byte[0];
                     }
                     return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.OK, "application/dns-message", new ByteArrayInputStream(rs), rs.length);
+                } else if (fileName.equals("/dlna_proxy")) {
+                    return handleDlnaProxy(session.getParms());
                 }
             } else if (session.getMethod() == Method.POST) {
                 Map<String, String> files = new HashMap<String, String>();
@@ -237,6 +245,185 @@ public class RemoteServer extends NanoHTTPD {
         }
         //default page: index.html
         return getRequestList.get(0).doResponse(session, "", null, null);
+    }
+
+    private Response handleDlnaProxy(Map<String, String> params) {
+        try {
+            String rawUrl = params.get("url");
+            if (rawUrl == null || rawUrl.trim().isEmpty()) {
+                return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.BAD_REQUEST,
+                        NanoHTTPD.MIME_PLAINTEXT, "missing url");
+            }
+            String targetUrl = URLDecoder.decode(rawUrl, "UTF-8");
+            dlnaDebug("代理请求: " + targetUrl);
+            okhttp3.Request.Builder builder = new okhttp3.Request.Builder().url(targetUrl);
+            for (Map.Entry<String, String> entry : params.entrySet()) {
+                String key = entry.getKey();
+                if (key == null || !key.startsWith("h_")) {
+                    continue;
+                }
+                String headerName = URLDecoder.decode(key.substring(2), "UTF-8");
+                String headerValue = entry.getValue() == null ? "" : URLDecoder.decode(entry.getValue(), "UTF-8");
+                if (!headerName.trim().isEmpty() && !headerValue.trim().isEmpty()) {
+                    builder.header(headerName, headerValue);
+                }
+            }
+            okhttp3.Response upstream = dlnaProxyClient.newCall(builder.get().build()).execute();
+            dlnaDebug("代理上游响应 code=" + upstream.code());
+            okhttp3.ResponseBody body = upstream.body();
+            if (body == null) {
+                upstream.close();
+                return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.BAD_GATEWAY,
+                        NanoHTTPD.MIME_PLAINTEXT, "upstream empty body");
+            }
+
+            String contentType = body.contentType() != null ? body.contentType().toString() : "";
+            boolean maybeM3u8 = targetUrl.toLowerCase().contains(".m3u8")
+                    || contentType.toLowerCase().contains("mpegurl")
+                    || contentType.toLowerCase().contains("vnd.apple.mpegurl");
+
+            if (maybeM3u8) {
+                String playlist = body.string();
+                String rewritten = rewriteM3u8Playlist(playlist, targetUrl, params);
+                upstream.close();
+                dlnaDebug("m3u8 重写完成");
+                return NanoHTTPD.newFixedLengthResponse(
+                        NanoHTTPD.Response.Status.lookup(200),
+                        "application/vnd.apple.mpegurl; charset=utf-8",
+                        rewritten
+                );
+            }
+
+            InputStream stream = new FilterInputStream(body.byteStream()) {
+                @Override
+                public void close() throws IOException {
+                    try {
+                        super.close();
+                    } finally {
+                        upstream.close();
+                    }
+                }
+            };
+            String mime = body.contentType() != null ? body.contentType().toString() : "application/octet-stream";
+            NanoHTTPD.Response.Status status = NanoHTTPD.Response.Status.lookup(upstream.code());
+            if (status == null) {
+                status = upstream.isSuccessful()
+                        ? NanoHTTPD.Response.Status.OK
+                        : NanoHTTPD.Response.Status.BAD_GATEWAY;
+            }
+            Response proxyResponse = NanoHTTPD.newChunkedResponse(status, mime, stream);
+            String contentLength = upstream.header("Content-Length");
+            if (contentLength != null) {
+                proxyResponse.addHeader("Content-Length", contentLength);
+            }
+            String acceptRanges = upstream.header("Accept-Ranges");
+            if (acceptRanges != null) {
+                proxyResponse.addHeader("Accept-Ranges", acceptRanges);
+            }
+            String contentRange = upstream.header("Content-Range");
+            if (contentRange != null) {
+                proxyResponse.addHeader("Content-Range", contentRange);
+            }
+            String cacheControl = upstream.header("Cache-Control");
+            if (cacheControl != null) {
+                proxyResponse.addHeader("Cache-Control", cacheControl);
+            }
+            return proxyResponse;
+        } catch (Throwable th) {
+            dlnaDebug("代理异常: " + th.getMessage());
+            return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.INTERNAL_ERROR,
+                    NanoHTTPD.MIME_PLAINTEXT, "dlna proxy error: " + th.getMessage());
+        }
+    }
+
+    private String rewriteM3u8Playlist(String playlist, String baseUrl, Map<String, String> params) {
+        if (playlist == null || playlist.isEmpty()) {
+            return playlist;
+        }
+        String[] lines = playlist.split("\\r?\\n", -1);
+        StringBuilder out = new StringBuilder(playlist.length() + 256);
+        int rewrittenCount = 0;
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+            String trimmed = line.trim();
+            String rewrittenLine = line;
+            if (trimmed.startsWith("#")) {
+                rewrittenLine = rewriteM3u8TagUri(line, baseUrl, params);
+                if (!rewrittenLine.equals(line)) {
+                    rewrittenCount++;
+                }
+            } else if (!trimmed.isEmpty()) {
+                String resolved = resolveUrl(baseUrl, trimmed);
+                rewrittenLine = buildDlnaProxyUrl(resolved, params);
+                rewrittenCount++;
+            }
+            out.append(rewrittenLine);
+            if (i < lines.length - 1) {
+                out.append('\n');
+            }
+        }
+        dlnaDebug("m3u8 行重写数量: " + rewrittenCount);
+        return out.toString();
+    }
+
+    private String rewriteM3u8TagUri(String line, String baseUrl, Map<String, String> params) {
+        Matcher matcher = Pattern.compile("URI=\"([^\"]+)\"").matcher(line);
+        if (!matcher.find()) {
+            return line;
+        }
+        String originalUri = matcher.group(1);
+        if (originalUri == null || originalUri.trim().isEmpty() || originalUri.startsWith("data:")) {
+            return line;
+        }
+        String resolved = resolveUrl(baseUrl, originalUri.trim());
+        String proxied = buildDlnaProxyUrl(resolved, params);
+        return matcher.replaceFirst("URI=\"" + Matcher.quoteReplacement(proxied) + "\"");
+    }
+
+    private String resolveUrl(String baseUrl, String ref) {
+        try {
+            if (ref.startsWith("http://") || ref.startsWith("https://")) {
+                return ref;
+            }
+            if (ref.startsWith("//")) {
+                URL base = new URL(baseUrl);
+                return base.getProtocol() + ":" + ref;
+            }
+            URL base = new URL(baseUrl);
+            return new URL(base, ref).toString();
+        } catch (Exception e) {
+            return ref;
+        }
+    }
+
+    private String buildDlnaProxyUrl(String targetUrl, Map<String, String> params) {
+        try {
+            String base = getServerAddress();
+            StringBuilder sb = new StringBuilder();
+            sb.append(base).append("dlna_proxy?url=")
+                    .append(URLEncoder.encode(targetUrl, "UTF-8"));
+            for (Map.Entry<String, String> entry : params.entrySet()) {
+                String key = entry.getKey();
+                if (key == null || !key.startsWith("h_")) {
+                    continue;
+                }
+                String value = entry.getValue();
+                if (value == null || value.trim().isEmpty()) {
+                    continue;
+                }
+                sb.append("&")
+                        .append(URLEncoder.encode(key, "UTF-8"))
+                        .append("=")
+                        .append(URLEncoder.encode(value, "UTF-8"));
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            return targetUrl;
+        }
+    }
+
+    private void dlnaDebug(String message) {
+        DLNAManager.getInstance().pushDebugLog("DLNAProxy: " + message);
     }
 
     public void setDataReceiver(DataReceiver receiver) {

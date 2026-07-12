@@ -49,6 +49,7 @@ public class DLNAPlayer {
     public void play(DLNADevice device, String url, String title) {
         this.currentDevice = device;
         this.currentUrl = url;
+        debugLog("准备投屏: " + (device != null ? device.getName() : "unknown") + " | url=" + url);
 
         String controlUrl = device.getAvTransportControlUrl();
         if (controlUrl == null) {
@@ -59,22 +60,26 @@ public class DLNAPlayer {
         executor.execute(() -> {
             try {
                 // 先Stop当前播放
+                debugLog("发送 Stop");
                 sendSoapAction(controlUrl, "Stop", buildStopBody());
                 Thread.sleep(300);
 
                 // SetAVTransportURI
                 String metadata = createMetadata(title, url);
                 String setUriBody = buildSetAVTransportURIBody(url, metadata);
+                debugLog("发送 SetAVTransportURI");
                 String setUriResponse = sendSoapAction(controlUrl, "SetAVTransportURI", setUriBody);
 
                 if (setUriResponse != null) {
                     Thread.sleep(300);
                     // Play
                     String playBody = buildPlayBody();
+                    debugLog("发送 Play");
                     String playResponse = sendSoapAction(controlUrl, "Play", playBody);
 
                     if (playResponse != null) {
                         isPlaying = true;
+                        Log.d(TAG, "DLNA Play success: " + device.getName() + " | url=" + url);
                         mainHandler.post(() -> {
                             if (stateListener != null) {
                                 stateListener.onConnected(device);
@@ -82,10 +87,10 @@ public class DLNAPlayer {
                             }
                         });
                     } else {
-                        notifyError("播放失败");
+                        notifyError("播放失败，设备未接受 Play 命令");
                     }
                 } else {
-                    notifyError("设置播放地址失败");
+                    notifyError("设置播放地址失败，设备未接受媒体地址");
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Play error", e);
@@ -170,13 +175,22 @@ public class DLNAPlayer {
                 .post(RequestBody.create(SOAP_MEDIA_TYPE, body))
                 .build();
             Response response = httpClient.newCall(request).execute();
-            if (response.isSuccessful() && response.body() != null) {
-                return response.body().string();
+            String responseBody = response.body() != null ? response.body().string() : "";
+            if (response.isSuccessful()) {
+                if (responseBody.toLowerCase().contains("<faultcode>") || responseBody.toLowerCase().contains("<upnp:error")) {
+                    Log.e(TAG, action + " soap fault: " + responseBody);
+                    debugLog(action + " 返回 SOAP Fault");
+                    return null;
+                }
+                debugLog(action + " 成功 code=" + response.code());
+                return responseBody;
             } else {
-                Log.e(TAG, action + " failed: " + response.code());
+                Log.e(TAG, action + " failed: " + response.code() + " body=" + responseBody);
+                debugLog(action + " 失败 code=" + response.code());
             }
         } catch (Exception e) {
             Log.e(TAG, action + " error", e);
+            debugLog(action + " 异常: " + e.getMessage());
         }
         return null;
     }
@@ -290,14 +304,32 @@ public class DLNAPlayer {
     }
 
     private String createMetadata(String title, String url) {
+        String protocolInfo = detectProtocolInfo(url);
         return "<DIDL-Lite xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\" " +
             "xmlns:dc=\"http://purl.org/dc/elements/1.1/\" " +
             "xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\">" +
             "<item id=\"0\" parentID=\"-1\" restricted=\"1\">" +
             "<dc:title>" + escapeXml(title) + "</dc:title>" +
             "<upnp:class>object.item.videoItem</upnp:class>" +
-            "<res protocolInfo=\"http-get:*:video/mp4:*\">" + escapeXml(url) + "</res>" +
+            "<res protocolInfo=\"" + protocolInfo + "\">" + escapeXml(url) + "</res>" +
             "</item></DIDL-Lite>";
+    }
+
+    private String detectProtocolInfo(String url) {
+        if (url == null) {
+            return "http-get:*:video/mp4:*";
+        }
+        String lower = url.toLowerCase();
+        if (lower.contains(".m3u8")) {
+            return "http-get:*:application/vnd.apple.mpegurl:*";
+        }
+        if (lower.contains(".mpd")) {
+            return "http-get:*:application/dash+xml:*";
+        }
+        if (lower.contains(".flv")) {
+            return "http-get:*:video/x-flv:*";
+        }
+        return "http-get:*:video/mp4:*";
     }
 
     private String escapeXml(String text) {
@@ -311,5 +343,9 @@ public class DLNAPlayer {
 
     private void notifyError(String msg) {
         mainHandler.post(() -> { if (stateListener != null) stateListener.onError(msg); });
+    }
+
+    private void debugLog(String message) {
+        DLNAManager.getInstance().pushDebugLog("DLNAPlayer: " + message);
     }
 }

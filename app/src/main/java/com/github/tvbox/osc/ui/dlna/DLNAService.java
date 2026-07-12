@@ -84,7 +84,7 @@ public class DLNAService extends Service {
             "HOST: 239.255.255.250:1900\r\n" +
             "MAN: \"ssdp:discover\"\r\n" +
             "MX: 3\r\n" +
-            "ST: urn:schemas-upnp-org:device:MediaRenderer:1\r\n" +
+            "ST: ssdp:all\r\n" +
             "\r\n";
 
         InetAddress multicastAddress = InetAddress.getByName(SSDP_ADDRESS);
@@ -193,15 +193,17 @@ public class DLNAService extends Service {
         String location = extractHeader(response, "LOCATION");
         String usn = extractHeader(response, "USN");
         String st = extractHeader(response, "ST");
+        String nt = extractHeader(response, "NT");
 
-        if (location != null && st != null && st.contains("MediaRenderer")) {
-            debugLog("发现 MediaRenderer: " + location);
+        if (location != null) {
+            String type = st != null ? st : (nt != null ? nt : "(unknown)");
+            debugLog("发现候选设备: " + location + " | type=" + type);
             if (discoveryListener != null) {
                 discoveryListener.onDeviceFound(location, usn != null ? usn : "", "");
             }
         } else {
-            String stInfo = st != null ? st : "(无ST)";
-            debugLog("忽略非MediaRenderer响应 [" + senderIp + "]: " + stInfo);
+            String stInfo = st != null ? st : (nt != null ? nt : "(无ST/NT)");
+            debugLog("忽略无LOCATION响应 [" + senderIp + "]: " + stInfo);
         }
     }
 

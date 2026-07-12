@@ -44,6 +44,7 @@ import com.github.tvbox.osc.bean.SourceBean;
 import com.github.tvbox.osc.bean.VodInfo;
 import com.github.tvbox.osc.cache.CacheManager;
 import com.github.tvbox.osc.event.RefreshEvent;
+import com.github.tvbox.osc.server.ControlManager;
 import com.github.tvbox.osc.player.controller.VodController;
 import com.github.tvbox.osc.player.thirdparty.MXPlayer;
 import com.github.tvbox.osc.player.thirdparty.ReexPlayer;
@@ -71,6 +72,7 @@ import org.greenrobot.eventbus.EventBus;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.net.URLEncoder;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -276,6 +278,7 @@ public class PlayActivity extends BaseActivity {
                     if (url != null) {
                         // 保存当前播放URL和标题
                         currentPlayUrl = url;
+                        currentPlayHeaders = headers != null ? new HashMap<>(headers) : null;
                         if (mVodInfo != null && mVodInfo.seriesMap != null && mVodInfo.seriesMap.get(mVodInfo.playFlag) != null) {
                             VodInfo.VodSeries vs = mVodInfo.seriesMap.get(mVodInfo.playFlag).get(mVodInfo.playIndex);
                             currentPlayTitle = mVodInfo.name + " " + vs.name;
@@ -283,7 +286,8 @@ public class PlayActivity extends BaseActivity {
                         // 投屏模式处理
                         if (isCasting && currentCastDevice != null && dlnaPlayer != null) {
                             hideTip();
-                            dlnaPlayer.play(currentCastDevice, url, currentPlayTitle);
+                            String castUrl = prepareDlnaCastUrl(url, headers);
+                            dlnaPlayer.play(currentCastDevice, castUrl, currentPlayTitle);
                             showCastControlDialog();
                             return;
                         }
@@ -489,6 +493,37 @@ public class PlayActivity extends BaseActivity {
     private DLNACastControlDialog castControlDialog;
     private String currentPlayUrl;
     private String currentPlayTitle;
+    private HashMap<String, String> currentPlayHeaders;
+    private final DLNAPlayer.OnDLNAStateListener dlnaStateListener = new DLNAPlayer.OnDLNAStateListener() {
+        @Override
+        public void onConnected(DLNADevice device) {
+            logCastDebug("设备已连接: " + (device != null ? device.getName() : "unknown"));
+            runOnUiThread(() -> Toast.makeText(PlayActivity.this,
+                    "已连接设备: " + (device != null ? device.getName() : ""), Toast.LENGTH_SHORT).show());
+        }
+
+        @Override
+        public void onDisconnected() {}
+
+        @Override
+        public void onPlay() {}
+
+        @Override
+        public void onPause() {}
+
+        @Override
+        public void onStop() {}
+
+        @Override
+        public void onError(String errorMsg) {
+            logCastDebug("投屏错误: " + (errorMsg == null ? "unknown" : errorMsg));
+            runOnUiThread(() -> Toast.makeText(PlayActivity.this,
+                    errorMsg == null ? "投屏失败" : errorMsg, Toast.LENGTH_LONG).show());
+        }
+
+        @Override
+        public void onPositionUpdate(long position, long duration) {}
+    };
 
     private void playNext() {
         boolean hasNext = true;
@@ -585,15 +620,19 @@ public class PlayActivity extends BaseActivity {
             public void onDeviceSelected(DLNADevice device) {
                 currentCastDevice = device;
                 isCasting = true;
+                logCastDebug("选择投屏设备: " + (device != null ? device.getName() : "unknown"));
 
                 // 创建DLNAPlayer
                 dlnaPlayer = new DLNAPlayer();
+                dlnaPlayer.setStateListener(dlnaStateListener);
 
                 mController.updateCastState(true);
 
                 // 如果当前已有播放URL，立即投屏
                 if (currentPlayUrl != null && dlnaPlayer != null) {
-                    dlnaPlayer.play(currentCastDevice, currentPlayUrl, currentPlayTitle);
+                    String castUrl = prepareDlnaCastUrl(currentPlayUrl, currentPlayHeaders);
+                    logCastDebug("开始投屏: " + currentPlayTitle + " | media=" + castUrl);
+                    dlnaPlayer.play(currentCastDevice, castUrl, currentPlayTitle);
                     mVideoView.pause();
                     showCastControlDialog();
                 }
@@ -624,6 +663,61 @@ public class PlayActivity extends BaseActivity {
             }
         });
         castControlDialog.show();
+    }
+
+    private String prepareDlnaCastUrl(String url, HashMap<String, String> headers) {
+        if (url == null || url.trim().isEmpty()) {
+            return "";
+        }
+        String trimmedUrl = url.trim();
+        String lanBase = null;
+        try {
+            lanBase = ControlManager.get().getAddress(false);
+        } catch (Throwable ignored) {
+        }
+        boolean hasHeaders = headers != null && !headers.isEmpty();
+        boolean needsProxy = hasHeaders || trimmedUrl.startsWith("proxy://") || trimmedUrl.contains("127.0.0.1");
+        if (!needsProxy) {
+            logCastDebug("投屏直连URL: " + trimmedUrl);
+            return trimmedUrl;
+        }
+        if (lanBase == null || lanBase.isEmpty()) {
+            logCastDebug("投屏代理不可用，回退直连URL");
+            return trimmedUrl;
+        }
+        String normalizedUrl = DefaultConfig.checkReplaceProxy(trimmedUrl);
+        String proxyUrl = buildDlnaProxyUrl(lanBase, normalizedUrl, headers);
+        logCastDebug("投屏代理URL: " + proxyUrl);
+        return proxyUrl;
+    }
+
+    private String buildDlnaProxyUrl(String lanBase, String targetUrl, HashMap<String, String> headers) {
+        try {
+            StringBuilder sb = new StringBuilder();
+            sb.append(lanBase).append("dlna_proxy?url=")
+                    .append(URLEncoder.encode(targetUrl, "UTF-8"));
+            if (headers != null) {
+                for (Map.Entry<String, String> entry : headers.entrySet()) {
+                    String key = entry.getKey();
+                    String value = entry.getValue();
+                    if (key == null || key.trim().isEmpty() || value == null) {
+                        continue;
+                    }
+                    sb.append("&h_")
+                            .append(URLEncoder.encode(key.trim(), "UTF-8"))
+                            .append("=")
+                            .append(URLEncoder.encode(value.trim(), "UTF-8"));
+                }
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            logCastDebug("构建投屏代理URL失败: " + e.getMessage());
+            return targetUrl;
+        }
+    }
+
+    private void logCastDebug(String message) {
+        DLNAManager.getInstance().pushDebugLog("PlayActivity: " + message);
     }
 
     private void initParse(String flag, boolean useParse, String playUrl, final String url) {

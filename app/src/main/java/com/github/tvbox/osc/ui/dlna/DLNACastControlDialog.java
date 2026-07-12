@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 
@@ -117,7 +118,11 @@ public class DLNACastControlDialog extends BaseDialog {
                 public void onStop() {}
 
                 @Override
-                public void onError(String errorMsg) {}
+                public void onError(String errorMsg) {
+                    mainHandler.post(() -> Toast.makeText(getContext(),
+                            errorMsg == null ? "投屏失败" : errorMsg,
+                            Toast.LENGTH_LONG).show());
+                }
 
                 @Override
                 public void onPositionUpdate(long position, long duration) {

@@ -26,6 +26,7 @@ import org.xmlpull.v1.XmlPullParserFactory;
 public class DLNAManager {
     private static final String TAG = "DLNAManager";
     private static volatile DLNAManager instance;
+    private static final int MAX_DEBUG_HISTORY = 200;
 
     private Context context;
     private DLNAService dlnaService;
@@ -35,6 +36,8 @@ public class DLNAManager {
     private OkHttpClient httpClient = new OkHttpClient();
     private ExecutorService executor = Executors.newCachedThreadPool();
     private Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final List<String> debugHistory = new ArrayList<>();
+    private volatile boolean debugEnabled = true;
 
     public interface OnDeviceChangeListener {
         void onDeviceAdded(DLNADevice device);
@@ -106,7 +109,9 @@ public class DLNAManager {
             Log.e(TAG, "DLNAManager not initialized, call init() first");
             return;
         }
-        deviceList.clear();
+        if (!deviceList.isEmpty()) {
+            debugLog("保留上次发现结果，后台刷新中...");
+        }
         Intent intent = new Intent(context, DLNAService.class);
         context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
         isBound = true;
@@ -128,7 +133,6 @@ public class DLNAManager {
 
     public void search() {
         if (dlnaService != null) {
-            deviceList.clear();
             debugLog("手动刷新，重新搜索...");
             dlnaService.searchDevices();
         } else {
@@ -142,6 +146,25 @@ public class DLNAManager {
 
     public void setOnDeviceChangeListener(OnDeviceChangeListener listener) {
         this.listener = listener;
+    }
+
+    public void setDebugEnabled(boolean enabled) {
+        this.debugEnabled = enabled;
+        debugLogInternal("调试日志已" + (enabled ? "开启" : "关闭"), true);
+    }
+
+    public boolean isDebugEnabled() {
+        return debugEnabled;
+    }
+
+    public List<String> getDebugHistory() {
+        synchronized (debugHistory) {
+            return new ArrayList<>(debugHistory);
+        }
+    }
+
+    public void pushDebugLog(String message) {
+        debugLog(message);
     }
 
     public void destroy() {
@@ -194,6 +217,7 @@ public class DLNAManager {
             String udn = null;
             String avTransportControlUrl = null;
             String baseUrl = null;
+            String urlBaseInXml = null;
             String currentServiceType = null;
             String controlUrl = null;
             boolean inService = false;
@@ -222,6 +246,8 @@ public class DLNAManager {
                                 friendlyName = text;
                             } else if ("UDN".equals(currentTag)) {
                                 udn = text;
+                            } else if ("URLBase".equals(currentTag)) {
+                                urlBaseInXml = text;
                             } else if ("serviceType".equals(currentTag) && inService) {
                                 currentServiceType = text;
                             } else if ("controlURL".equals(currentTag) && inService) {
@@ -244,22 +270,77 @@ public class DLNAManager {
             }
 
             if (friendlyName != null && avTransportControlUrl != null) {
-                String uuid = udn != null ? udn.replace("uuid:", "") : usn;
+                String uuid = buildStableUuid(udn, usn, location, avTransportControlUrl);
                 DLNADevice device = new DLNADevice(friendlyName, uuid, location);
 
                 // 处理controlUrl（可能是相对路径或绝对路径）
-                if (avTransportControlUrl.startsWith("http")) {
-                    device.setAvTransportControlUrl(avTransportControlUrl);
-                } else {
-                    device.setAvTransportControlUrl(baseUrl + avTransportControlUrl);
+                String resolvedControlUrl = resolveControlUrl(baseUrl, urlBaseInXml, location, avTransportControlUrl);
+                if (resolvedControlUrl == null) {
+                    debugLog("控制地址解析失败，跳过: " + friendlyName + " | " + avTransportControlUrl);
+                    return null;
                 }
-                device.setBaseUrl(baseUrl);
+                device.setAvTransportControlUrl(resolvedControlUrl);
+                device.setBaseUrl(urlBaseInXml != null && !urlBaseInXml.trim().isEmpty() ? urlBaseInXml.trim() : baseUrl);
                 return device;
             }
         } catch (Exception e) {
             Log.e(TAG, "Parse device XML error", e);
         }
         return null;
+    }
+
+    private String buildStableUuid(String udn, String usn, String location, String controlUrl) {
+        String normalizedUdn = normalizeUuid(udn);
+        if (!normalizedUdn.isEmpty()) {
+            return normalizedUdn;
+        }
+        String normalizedUsn = normalizeUuid(usn);
+        if (!normalizedUsn.isEmpty()) {
+            return normalizedUsn;
+        }
+        String key = (location == null ? "" : location.trim()) + "|" +
+                (controlUrl == null ? "" : controlUrl.trim());
+        return key.isEmpty() ? "unknown-device" : key;
+    }
+
+    private String normalizeUuid(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        String value = raw.trim();
+        if (value.startsWith("uuid:")) {
+            value = value.substring(5);
+        }
+        int idx = value.indexOf("::");
+        if (idx > 0) {
+            value = value.substring(0, idx);
+        }
+        return value.trim();
+    }
+
+    private String resolveControlUrl(String baseUrl, String urlBaseInXml, String location, String controlUrl) {
+        if (controlUrl == null) {
+            return null;
+        }
+        String trimmed = controlUrl.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        try {
+            URL locationUrl = new URL(location);
+            if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+                return trimmed;
+            }
+            if (trimmed.startsWith("//")) {
+                return locationUrl.getProtocol() + ":" + trimmed;
+            }
+            String effectiveBase = (urlBaseInXml != null && !urlBaseInXml.trim().isEmpty()) ? urlBaseInXml.trim() : baseUrl;
+            URL base = new URL(effectiveBase);
+            return new URL(base, trimmed).toString();
+        } catch (Exception e) {
+            Log.e(TAG, "Resolve control url error", e);
+            return null;
+        }
     }
 
     private void addDevice(DLNADevice device) {
@@ -275,7 +356,20 @@ public class DLNAManager {
     }
 
     private void debugLog(String message) {
+        debugLogInternal(message, false);
+    }
+
+    private void debugLogInternal(String message, boolean forceNotify) {
         Log.d(TAG, message);
+        synchronized (debugHistory) {
+            debugHistory.add(message);
+            if (debugHistory.size() > MAX_DEBUG_HISTORY) {
+                debugHistory.remove(0);
+            }
+        }
+        if (!debugEnabled && !forceNotify) {
+            return;
+        }
         mainHandler.post(() -> {
             if (listener != null) {
                 listener.onDebugLog(message);

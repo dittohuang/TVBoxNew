@@ -56,6 +56,19 @@ public class DLNADeviceDialog extends BaseDialog {
 
         tvDebugLog = findViewById(R.id.tv_debug_log);
         debugScrollView = findViewById(R.id.debug_scroll);
+        TextView debugLabel = findViewById(R.id.debug_log_label);
+        updateDebugLabel(debugLabel);
+        debugLabel.setOnClickListener(v -> {
+            boolean enabled = !DLNAManager.getInstance().isDebugEnabled();
+            DLNAManager.getInstance().setDebugEnabled(enabled);
+            updateDebugLabel(debugLabel);
+            appendDebugLog("调试开关: " + (enabled ? "开启" : "关闭"));
+        });
+
+        List<String> cachedLogs = DLNAManager.getInstance().getDebugHistory();
+        for (String line : cachedLogs) {
+            appendDebugLog(line);
+        }
         appendDebugLog("打开投屏对话框，开始搜索...");
 
         RecyclerView recyclerView = findViewById(R.id.device_list);
@@ -157,6 +170,14 @@ public class DLNADeviceDialog extends BaseDialog {
         if (debugScrollView != null) {
             debugScrollView.post(() -> debugScrollView.fullScroll(View.FOCUS_DOWN));
         }
+    }
+
+    private void updateDebugLabel(TextView debugLabel) {
+        if (debugLabel == null) {
+            return;
+        }
+        boolean enabled = DLNAManager.getInstance().isDebugEnabled();
+        debugLabel.setText(enabled ? "调试日志：开启(点击关闭)" : "调试日志：关闭(点击开启)");
     }
 
     @Override
